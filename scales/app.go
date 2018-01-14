@@ -1,11 +1,11 @@
 package main
 
 import (
-	"net/http"
 	"encoding/json"
 	"fmt"
-	"strconv"
+	"net/http"
 	"sort"
+	"strconv"
 )
 
 const qryptosApiUrl = "https://api.qryptos.com"
@@ -39,17 +39,17 @@ func main() {
 
 	fmt.Println("TOP 3:")
 	for i := 0; i < 3; i++ {
-		printReport(reports[len(reports) - (i + 1)])
+		printReport(reports[len(reports)-(i+1)])
 	}
 }
 
 type productDetails struct {
-	ID string `json:"id"`
-	Currency string `json:"currency"`
-	CurrencyPairCode string `json:"currency_pair_code"`
-	MarketAsk float32 `json:"market_ask"`
-	MarketBid float32 `json:"market_bid"`
-	Volume24Hr string `json:"volume_24h"`
+	ID               string  `json:"id"`
+	Currency         string  `json:"currency"`
+	CurrencyPairCode string  `json:"currency_pair_code"`
+	MarketAsk        float32 `json:"market_ask"`
+	MarketBid        float32 `json:"market_bid"`
+	Volume24Hr       string  `json:"volume_24h"`
 }
 
 type report struct {
@@ -59,7 +59,7 @@ type report struct {
 	spread        float32
 	volume24Hr    float32
 	volume24HrBtc float32
-	weight		  float32
+	weight        float32
 }
 
 func buildReport(details *productDetails) *report {
@@ -79,7 +79,7 @@ func buildReport(details *productDetails) *report {
 		spread:        spread,
 		volume24Hr:    float32(vol),
 		volume24HrBtc: volume24HrBtc,
-		weight:		   spread * float32(vol),
+		weight:        spread * float32(vol),
 	}
 }
 
@@ -97,6 +97,6 @@ func printReport(r *report) {
 
 type Reports []*report
 
-func (s Reports) Len() int { return len(s) }
-func (s Reports) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s Reports) Len() int           { return len(s) }
+func (s Reports) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s Reports) Less(i, j int) bool { return s[i].weight < s[j].weight }
