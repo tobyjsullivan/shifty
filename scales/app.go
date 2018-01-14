@@ -9,6 +9,8 @@ import (
 )
 
 const qryptosApiUrl = "https://api.qryptos.com"
+const availableCapital = float32(0.03)
+const topN = 5
 
 func main() {
 	endpoint := qryptosApiUrl + "/products"
@@ -25,7 +27,7 @@ func main() {
 	var reports []*report
 
 	for _, prodData := range parsedResponse {
-		if prodData.Currency != "BTC" {
+		if prodData.Currency != "BTC" || prodData.CurrencyPairCode == "XRPBTC" {
 			continue
 		}
 
@@ -37,9 +39,30 @@ func main() {
 
 	sort.Sort(Reports(reports))
 
-	fmt.Println("TOP 3:")
-	for i := 0; i < 3; i++ {
-		printReport(reports[len(reports)-(i+1)])
+	fmt.Println(fmt.Sprintf("TOP %d:", topN))
+	topReports := make([]*report, topN)
+	totalWeight := float32(0.0)
+	for i := 0; i < topN; i++ {
+		r := reports[len(reports)-(i+1)]
+		printReport(r)
+		topReports[i] = r
+
+		totalWeight += r.weight
+	}
+
+	fmt.Println("Recommended Orders:")
+
+	for _, r := range topReports {
+		offset := float32(0.0)
+		bidAmount := r.bid + offset
+		askAmount := r.ask - offset
+
+		capitalProportion := availableCapital * (r.weight / totalWeight)
+
+		quantity := capitalProportion / bidAmount
+
+		fmt.Printf("BUY  %s; Bid: %.08f; Quantity: %.04f; Risk: %.08f\n", r.currencyPair, bidAmount, quantity, quantity*bidAmount)
+		fmt.Printf("SELL %s; Ask: %.08f; Quantity: %.04f\n", r.currencyPair, askAmount, quantity)
 	}
 }
 
