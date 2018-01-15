@@ -1,33 +1,25 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
+	"github.com/tobyjsullivan/shifty/qryptos"
 	"sort"
-	"strconv"
 )
 
 const qryptosApiUrl = "https://api.qryptos.com"
-const availableCapital = float32(0.03)
+const availableCapital = 0.03
 const topN = 5
 
 func main() {
-	endpoint := qryptosApiUrl + "/products"
-	res, err := http.DefaultClient.Get(endpoint)
+	productDetails, err := qryptos.DefaultClient().FetchProducts()
 	if err != nil {
-		panic(err)
-	}
-
-	var parsedResponse []*productDetails
-	if err := json.NewDecoder(res.Body).Decode(&parsedResponse); err != nil {
 		panic(err)
 	}
 
 	var reports []*report
 
-	for _, prodData := range parsedResponse {
-		if prodData.Currency != "BTC" || prodData.CurrencyPairCode == "XRPBTC" {
+	for _, prodData := range productDetails {
+		if prodData.Disabled || prodData.Currency != "BTC" || prodData.BaseCurrency == "XRP" {
 			continue
 		}
 
@@ -41,7 +33,7 @@ func main() {
 
 	fmt.Println(fmt.Sprintf("TOP %d:", topN))
 	topReports := make([]*report, topN)
-	totalWeight := float32(0.0)
+	totalWeight := 0.0
 	for i := 0; i < topN; i++ {
 		r := reports[len(reports)-(i+1)]
 		printReport(r)
@@ -53,7 +45,7 @@ func main() {
 	fmt.Println("Recommended Orders:")
 
 	for _, r := range topReports {
-		offset := float32(0.0)
+		offset := 0.0
 		bidAmount := r.bid + offset
 		askAmount := r.ask - offset
 
@@ -77,32 +69,28 @@ type productDetails struct {
 
 type report struct {
 	currencyPair  string
-	bid           float32
-	ask           float32
-	spread        float32
-	volume24Hr    float32
-	volume24HrBtc float32
-	weight        float32
+	bid           float64
+	ask           float64
+	spread        float64
+	volume24Hr    float64
+	volume24HrBtc float64
+	weight        float64
 }
 
-func buildReport(details *productDetails) *report {
-	vol, err := strconv.ParseFloat(details.Volume24Hr, 10)
-	if err != nil {
-		panic(err)
-	}
+func buildReport(details *qryptos.ProductDetails) *report {
 
 	spread := details.MarketAsk - details.MarketBid
 	currentRate := (details.MarketBid + details.MarketAsk) / 2.0
-	volume24HrBtc := float32(vol) * currentRate
+	volume24HrBtc := details.Volume24Hour * currentRate
 
 	return &report{
 		currencyPair:  details.CurrencyPairCode,
 		bid:           details.MarketBid,
 		ask:           details.MarketAsk,
 		spread:        spread,
-		volume24Hr:    float32(vol),
+		volume24Hr:    details.Volume24Hour,
 		volume24HrBtc: volume24HrBtc,
-		weight:        spread * float32(vol),
+		weight:        spread * details.Volume24Hour,
 	}
 }
 
