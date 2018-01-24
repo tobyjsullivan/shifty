@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"time"
+	"errors"
 )
 
 const (
@@ -44,7 +45,11 @@ func main() {
 }
 
 func loop() {
-	details := getProductDetails()
+	details, err := getProductDetails()
+	if err != nil {
+		fmt.Println("[loop] Error:", err)
+		return
+	}
 
 	productId := details.ProductID
 
@@ -68,7 +73,6 @@ func loop() {
 	}
 
 	fmt.Println("[loop] Buy order filled.")
-	return
 
 	if sellOrderId == 0 {
 		fmt.Println("[loop] Creating sell order...")
@@ -97,20 +101,20 @@ func loop() {
 	fmt.Printf("[loop] Estimated profit was %.08f BTC (+/- fees)\n", estProfit)
 }
 
-func getProductDetails() *qryptos.ProductDetails {
+func getProductDetails() (*qryptos.ProductDetails, error) {
 	// Get currency details
 	allProducts, err := qryptos.DefaultClient().FetchProducts()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	for _, product := range allProducts {
 		if product.BaseCurrency == baseCurrency && product.QuotedCurrency == quoteCurrency {
-			return product
+			return product, nil
 		}
 	}
 
-	panic("Product details not found")
+	return nil, errors.New("product details not found")
 }
 
 func orderFilled(orderId int) bool {
