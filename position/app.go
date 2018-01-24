@@ -10,8 +10,6 @@ import (
 )
 
 const (
-	baseCurrency  = "VZT"
-	quoteCurrency = "BTC"
 	capitalAmount = 0.01
 	loopDelay     = 30 * time.Second
 )
@@ -24,6 +22,8 @@ const (
 var (
 	apiTokenId   = os.Getenv("QRYPTOS_API_TOKEN_ID")
 	apiSecretKey = os.Getenv("QRYPTOS_API_SECRET_KEY")
+	baseCurrency  = os.Getenv("POSITION_BASE_CURRENCY")
+	quoteCurrency = os.Getenv("POSITION_QUOTE_CURRENCY")
 
 	positionQuantity float64
 	client           = &qryptos.PrivateClient{
