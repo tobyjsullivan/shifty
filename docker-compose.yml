@@ -1,0 +1,10 @@
+version: "3"
+services:
+  position:
+    build:
+      context: ./position
+    environment:
+      QRYPTOS_API_TOKEN_ID:
+      QRYPTOS_API_SECRET_KEY:
+      POSITION_BASE_CURRENCY: LTC
+      POSITION_QUOTE_CURRENCY: BTC

@@ -49,6 +49,11 @@ func (c *PublicClient) FetchProducts() ([]*ProductDetails, error) {
 
 	out := make([]*ProductDetails, len(parsedResponse))
 	for i, respDetail := range parsedResponse {
+		prodId, err := strconv.Atoi(respDetail.ID)
+		if err != nil {
+			return []*ProductDetails{}, err
+		}
+
 		marketAsk, err := strconv.ParseFloat(respDetail.MarketAsk, 64)
 		if err != nil {
 			return []*ProductDetails{}, err
@@ -65,7 +70,7 @@ func (c *PublicClient) FetchProducts() ([]*ProductDetails, error) {
 		}
 
 		out[i] = &ProductDetails{
-			ProductID:        respDetail.ID,
+			ProductID:        prodId,
 			Currency:         respDetail.Currency,
 			BaseCurrency:     respDetail.BaseCurrency,
 			QuotedCurrency:   respDetail.QuotedCurrency,
@@ -81,7 +86,7 @@ func (c *PublicClient) FetchProducts() ([]*ProductDetails, error) {
 }
 
 type productsResponse struct {
-	ID               int    `json:"id"`
+	ID               string `json:"id"`
 	Currency         string `json:"currency"`
 	CurrencyPairCode string `json:"currency_pair_code"`
 	BaseCurrency     string `json:"base_currency"`
