@@ -7,13 +7,10 @@ import (
 	"os"
 )
 
-const (
-	path = "/orders"
-)
-
 var (
 	tokenId = os.Getenv("TOKEN_ID")
 	userSecret = os.Getenv("USER_SECRET")
+	path = os.Getenv("REQUEST_PATH")
 	nonce = time.Now().UnixNano() / 1000000
 )
 

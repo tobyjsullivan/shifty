@@ -27,6 +27,13 @@ type OrderDetails struct {
 	Side             string
 	Status           string
 	CurrencyPairCode string
+	Executions		 []*ExecutionDetails
+}
+
+type ExecutionDetails struct {
+	ID int
+	Quantity float64
+	Price float64
 }
 
 func (c *PrivateClient) generateJWT(uri *url.URL) (string, error) {
@@ -59,6 +66,15 @@ type orderResponse struct {
 	Side             string `json:"side"`
 	Status           string `json:"status"`
 	CurrencyPairCode string `json:"currency_pair_code"`
+	Executions	[]*executionResponse `json:"executions"`
+}
+
+type executionResponse struct {
+	ID int `json:"id"`
+	Quantity string `json:"quantity"`
+	Price string `json:"price"`
+	TakerSide string `json:"taker_side"`
+	MySide string `json:"my_side"`
 }
 
 func (c *PrivateClient) FetchOrders() ([]*OrderDetails, error) {
@@ -70,6 +86,7 @@ func (c *PrivateClient) FetchOrders() ([]*OrderDetails, error) {
 
 	q := req.URL.Query()
 	q.Set("limit", "100")
+	q.Set("with_details", "1")
 	req.URL.RawQuery = q.Encode()
 
 	req.Header.Set("X-Quoine-API-Version", "2")
@@ -93,14 +110,44 @@ func (c *PrivateClient) FetchOrders() ([]*OrderDetails, error) {
 
 	out := make([]*OrderDetails, len(parsedResponse.Models))
 	for i, model := range parsedResponse.Models {
+		executions, err := parseExecutions(model.Executions)
+		if err != nil {
+			return []*OrderDetails{}, err
+		}
+
 		out[i] = &OrderDetails{
 			ID:               model.ID,
 			Side:             model.Side,
 			Status:           model.Status,
 			CurrencyPairCode: model.CurrencyPairCode,
+			Executions: 	  executions,
 		}
 
 		fmt.Println("[FetchOrders] ID:", model.ID)
+	}
+
+	return out, nil
+}
+
+func parseExecutions(input []*executionResponse) ([]*ExecutionDetails, error) {
+	var out []*ExecutionDetails
+
+	for _, resp := range input {
+		quantity, err := strconv.ParseFloat(resp.Quantity, 64)
+		if err != nil {
+			return []*ExecutionDetails{}, err
+		}
+
+		price, err := strconv.ParseFloat(resp.Price, 64)
+		if err != nil {
+			return []*ExecutionDetails{}, err
+		}
+
+		out = append(out, &ExecutionDetails{
+			ID: resp.ID,
+			Quantity: quantity,
+			Price: price,
+		})
 	}
 
 	return out, nil
@@ -135,11 +182,18 @@ func (c *PrivateClient) FetchOrder(orderId int) (*OrderDetails, error) {
 		return nil, err
 	}
 
+	executions, err := parseExecutions(parsedResponse.Executions)
+	if err != nil {
+		return nil, err
+	}
+
+
 	return &OrderDetails{
 		ID:               parsedResponse.ID,
 		Side:             parsedResponse.Side,
 		Status:           parsedResponse.Status,
 		CurrencyPairCode: parsedResponse.CurrencyPairCode,
+		Executions: 	  executions,
 	}, nil
 }
 
