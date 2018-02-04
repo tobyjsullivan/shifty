@@ -45,19 +45,18 @@ func runBudget() error {
 		return err
 	}
 
-	ctx, err := fetchContext()
-	if err != nil {
-		return err
-	}
-
-	for !desired.Closed(ctx) {
+	for {
 		time.Sleep(loopDelay)
 		fmt.Println("[runBudget]", "Starting next loop...")
 
-		ctx, err = fetchContext()
+		ctx, err := fetchContext()
 		if err != nil {
 			fmt.Println("[runBudget]", "error in fetchContext:", err.Error())
 			continue
+		}
+
+		if desired.Closed(ctx) {
+			break
 		}
 
 		err = desired.closeOpenPositions(ctx)
