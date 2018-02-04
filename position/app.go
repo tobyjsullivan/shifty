@@ -37,6 +37,8 @@ var (
 )
 
 func main() {
+	fmt.Println("[main] Running with token ID:", apiTokenId)
+
 	for {
 		go loop()
 

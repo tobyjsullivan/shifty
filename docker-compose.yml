@@ -2,7 +2,8 @@ version: "3"
 services:
   position:
     build:
-      context: ./position
+      context: .
+      dockerfile: ./position/Dockerfile
     environment:
       QRYPTOS_API_TOKEN_ID:
       QRYPTOS_API_SECRET_KEY:
