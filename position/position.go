@@ -55,14 +55,14 @@ func runBudget() error {
 			continue
 		}
 
-		if desired.Closed(ctx) {
-			break
-		}
-
 		err = desired.closeOpenPositions(ctx)
 		if err != nil {
 			fmt.Println("[runBudget]", "error in closeOpenPositions:", err.Error())
 			continue
+		}
+
+		if desired.Closed(ctx) {
+			break
 		}
 	}
 
@@ -164,7 +164,7 @@ func closePosition(ctx *context, buyPrice, quantity float64) (int, error) {
 	sideValue := "sell"
 
 	productId := ctx.productDetails.ProductID
-	price := math.Max(ctx.productDetails.MarketAsk - 0.00000001, buyPrice * 1.03)
+	price := math.Max(ctx.productDetails.MarketAsk - 0.00000001, buyPrice + 0.00000001)
 
 	orderId, err := client.CreateLimitOrder(productId, sideValue, quantity, price)
 	if err != nil {
