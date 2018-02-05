@@ -55,11 +55,19 @@ func runBudget() error {
 			continue
 		}
 
-		err = desired.closeOpenPositions(ctx)
-		if err != nil {
+
+		if err = desired.closeOpenPositions(ctx); err != nil {
 			fmt.Println("[runBudget]", "error in closeOpenPositions:", err.Error())
 			continue
 		}
+
+		// Update buy order if market bid has gone above our bid
+		if err = desired.matchMarketBid(ctx); err != nil {
+			fmt.Println("[runBudget]", "error in closeOpenPositions:", err.Error())
+			continue
+		}
+
+		// TODO: Update sell orders if market ask has dropped below our ask
 
 		if desired.Closed(ctx) {
 			break
@@ -136,6 +144,26 @@ func (p *desiredPosition) closeOpenPositions(ctx *context) error {
 			openingExecutionId:execution.ID,
 			closingOrderId: orderId,
 		})
+	}
+
+	return nil
+}
+
+func (p *desiredPosition) matchMarketBid(ctx *context) error {
+	buyOrder := ctx.findOrder(p.buyOrderId)
+	if buyOrder == nil {
+		return nil
+	}
+
+	if buyOrder.Status == "live" && buyOrder.Price < ctx.productDetails.MarketAsk {
+		fmt.Println(fmt.Sprintf(
+			"[matchMarketBid] Buy price is %.08f but current market as is %.08f so editing order",
+			buyOrder.Price,
+			ctx.productDetails.MarketAsk,
+		))
+		price := ctx.productDetails.MarketAsk
+		qty := capitalAmount / price
+		client.EditOrder(p.buyOrderId, qty, price)
 	}
 
 	return nil

@@ -27,6 +27,8 @@ type OrderDetails struct {
 	Side             string
 	Status           string
 	CurrencyPairCode string
+	Price			 float64
+	FilledQuantity   float64
 	Executions		 []*ExecutionDetails
 }
 
@@ -66,6 +68,8 @@ type orderResponse struct {
 	Side             string `json:"side"`
 	Status           string `json:"status"`
 	CurrencyPairCode string `json:"currency_pair_code"`
+	Price 			 float64 `json:"price"`
+	FilledQuantity   string `json:"filled_quantity"`
 	Executions	[]*executionResponse `json:"executions"`
 }
 
@@ -110,44 +114,11 @@ func (c *PrivateClient) FetchOrders() ([]*OrderDetails, error) {
 
 	out := make([]*OrderDetails, len(parsedResponse.Models))
 	for i, model := range parsedResponse.Models {
-		executions, err := parseExecutions(model.Executions)
+		fmt.Println("[FetchOrders] ID:", model.ID)
+		out[i], err = parseOrderDetails(model)
 		if err != nil {
 			return []*OrderDetails{}, err
 		}
-
-		out[i] = &OrderDetails{
-			ID:               model.ID,
-			Side:             model.Side,
-			Status:           model.Status,
-			CurrencyPairCode: model.CurrencyPairCode,
-			Executions: 	  executions,
-		}
-
-		fmt.Println("[FetchOrders] ID:", model.ID)
-	}
-
-	return out, nil
-}
-
-func parseExecutions(input []*executionResponse) ([]*ExecutionDetails, error) {
-	var out []*ExecutionDetails
-
-	for _, resp := range input {
-		quantity, err := strconv.ParseFloat(resp.Quantity, 64)
-		if err != nil {
-			return []*ExecutionDetails{}, err
-		}
-
-		price, err := strconv.ParseFloat(resp.Price, 64)
-		if err != nil {
-			return []*ExecutionDetails{}, err
-		}
-
-		out = append(out, &ExecutionDetails{
-			ID: resp.ID,
-			Quantity: quantity,
-			Price: price,
-		})
 	}
 
 	return out, nil
@@ -182,19 +153,7 @@ func (c *PrivateClient) FetchOrder(orderId int) (*OrderDetails, error) {
 		return nil, err
 	}
 
-	executions, err := parseExecutions(parsedResponse.Executions)
-	if err != nil {
-		return nil, err
-	}
-
-
-	return &OrderDetails{
-		ID:               parsedResponse.ID,
-		Side:             parsedResponse.Side,
-		Status:           parsedResponse.Status,
-		CurrencyPairCode: parsedResponse.CurrencyPairCode,
-		Executions: 	  executions,
-	}, nil
+	return parseOrderDetails(&parsedResponse)
 }
 
 func (c *PrivateClient) CreateLimitOrder(productId int, side string, quantity, price float64) (int, error) {
@@ -204,7 +163,7 @@ func (c *PrivateClient) CreateLimitOrder(productId int, side string, quantity, p
 	priceString := fmt.Sprintf("%.08f", price)
 
 	payload := &fmtCreateOrder{
-		Order: &fmtOrder{
+		Order: &fmtCreateOrderModel{
 			OrderType: "limit",
 			ProductID: productId,
 			Side:      side,
@@ -267,14 +226,120 @@ func (c *PrivateClient) CreateLimitOrder(productId int, side string, quantity, p
 	return parsedRes.ID, nil
 }
 
-type fmtCreateOrder struct {
-	Order *fmtOrder `json:"order"`
+func (c *PrivateClient) EditOrder(orderId int, quantity, price float64) error {
+	fmt.Println("[EditOrder]", "Updating order:", orderId)
+
+	qtyString := fmt.Sprintf("%.08f", quantity)
+	priceString := fmt.Sprintf("%.08f", price)
+
+	payload := &fmtEditOrder{
+		Order: &fmtEditOrderModel{
+			Quantity: qtyString,
+			Price: priceString,
+		},
+	}
+
+	bodyString, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	endpoint := fmt.Sprintf("%s%s/%d", apiBaseUrl, ordersEndpoint, orderId)
+	req, err := http.NewRequest(http.MethodPut, endpoint, strings.NewReader(string(bodyString)))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("X-Quoine-API-Version", "2")
+	req.Header.Set("Content-Type", "application/json")
+
+	token, err := c.generateJWT(req.URL)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("X-Quoine-Auth", token)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode != 200 {
+		var buf bytes.Buffer
+		buf.ReadFrom(res.Body)
+
+		fmt.Printf("[EditOrder] Error: %s\n", buf)
+
+		return errors.New(fmt.Sprintf("unexpected status: %d", res.StatusCode))
+	}
+
+	return nil
 }
 
-type fmtOrder struct {
+type fmtCreateOrder struct {
+	Order *fmtCreateOrderModel `json:"order"`
+}
+
+type fmtCreateOrderModel struct {
 	OrderType string `json:"order_type"`
 	ProductID int    `json:"product_id"`
 	Side      string `json:"side"`
 	Quantity  string `json:"quantity"`
 	Price     string `json:"price"`
+}
+
+type fmtEditOrder struct {
+	Order *fmtEditOrderModel `json:"order"`
+}
+
+type fmtEditOrderModel struct{
+	Quantity string `json:"quantity"`
+	Price string `json:"price"`
+}
+
+func parseExecutions(input []*executionResponse) ([]*ExecutionDetails, error) {
+	var out []*ExecutionDetails
+
+	for _, resp := range input {
+		quantity, err := strconv.ParseFloat(resp.Quantity, 64)
+		if err != nil {
+			return []*ExecutionDetails{}, err
+		}
+
+		price, err := strconv.ParseFloat(resp.Price, 64)
+		if err != nil {
+			return []*ExecutionDetails{}, err
+		}
+
+		out = append(out, &ExecutionDetails{
+			ID: resp.ID,
+			Quantity: quantity,
+			Price: price,
+		})
+	}
+
+	return out, nil
+}
+
+func parseOrderDetails(input *orderResponse) (*OrderDetails, error) {
+	executions, err := parseExecutions(input.Executions)
+	if err != nil {
+		return nil, err
+	}
+
+	filledQty, err := strconv.ParseFloat(input.FilledQuantity, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return &OrderDetails{
+		ID:               input.ID,
+		Side:             input.Side,
+		Status:           input.Status,
+		CurrencyPairCode: input.CurrencyPairCode,
+		Price:            input.Price,
+		FilledQuantity:   filledQty,
+		Executions: 	  executions,
+	}, nil
 }
