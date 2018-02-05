@@ -10,7 +10,7 @@ import (
 
 const (
 	capitalAmount = 0.01
-	loopDelay     = 30 * time.Second
+	loopDelay     = 10 * time.Second
 )
 
 var (

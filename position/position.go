@@ -187,7 +187,7 @@ func (p *desiredPosition) matchMarketAsk(ctx *context) error {
 		minAsk := position.openingPrice
 
 		if sellOrder.Price > mktAsk && sellOrder.Price > minAsk {
-			price := math.Max(minAsk, mktAsk)
+			price := math.Max(minAsk, mktAsk-0.00000001)
 			fmt.Println(fmt.Sprintf(
 				"[matchMarketAsk] Sell price is %.08f but current market ask is %.08f so editing order",
 				sellOrder.Price,
