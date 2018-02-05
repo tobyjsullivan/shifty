@@ -114,7 +114,6 @@ func (c *PrivateClient) FetchOrders() ([]*OrderDetails, error) {
 
 	out := make([]*OrderDetails, len(parsedResponse.Models))
 	for i, model := range parsedResponse.Models {
-		fmt.Println("[FetchOrders] ID:", model.ID)
 		out[i], err = parseOrderDetails(model)
 		if err != nil {
 			return []*OrderDetails{}, err

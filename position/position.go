@@ -120,8 +120,6 @@ func beginPosition(productDetails *qryptos.ProductDetails, budget float64) (*des
 }
 
 func (p *desiredPosition) closeOpenPositions(ctx *context) error {
-	fmt.Println("[closeOpenPositions]", "Checking for open positions...")
-
 	buyOrder := ctx.findOrder(p.buyOrderId)
 	executions := buyOrder.Executions
 
@@ -205,7 +203,6 @@ func (p *desiredPosition) matchMarketAsk(ctx *context) error {
 }
 
 func (p *desiredPosition) closed(ctx *context) bool {
-	fmt.Println("[desiredPosition.closed]", "Checking buy order status.", p.buyOrderId)
 	openOrder := ctx.findOrder(p.buyOrderId)
 	if openOrder == nil {
 		// Assume brand new and data not loaded into context
