@@ -28,6 +28,7 @@ type OrderDetails struct {
 	Status           string
 	CurrencyPairCode string
 	Price			 float64
+	Quantity         float64
 	FilledQuantity   float64
 	Executions		 []*ExecutionDetails
 }
@@ -54,8 +55,6 @@ func (c *PrivateClient) generateJWT(uri *url.URL) (string, error) {
 
 	tokenString, err := token.SignedString([]byte(c.ApiSecretKey))
 
-	//fmt.Println("[GenerateJWT] Token String:", tokenString, "Error:", err)
-
 	return tokenString, err
 }
 
@@ -69,6 +68,7 @@ type orderResponse struct {
 	Status           string `json:"status"`
 	CurrencyPairCode string `json:"currency_pair_code"`
 	Price 			 float64 `json:"price"`
+	Quantity         string `json:"quantity"`
 	FilledQuantity   string `json:"filled_quantity"`
 	Executions	[]*executionResponse `json:"executions"`
 }
@@ -277,6 +277,10 @@ func (c *PrivateClient) EditOrder(orderId int, quantity, price float64) error {
 	return nil
 }
 
+func (o *OrderDetails) CanEdit() bool {
+	return o.Status == "live" && o.FilledQuantity == 0.0
+}
+
 type fmtCreateOrder struct {
 	Order *fmtCreateOrderModel `json:"order"`
 }
@@ -328,6 +332,11 @@ func parseOrderDetails(input *orderResponse) (*OrderDetails, error) {
 		return nil, err
 	}
 
+	quantity, err := strconv.ParseFloat(input.Quantity, 64)
+	if err != nil {
+		return nil, err
+	}
+
 	filledQty, err := strconv.ParseFloat(input.FilledQuantity, 64)
 	if err != nil {
 		return nil, err
@@ -339,6 +348,7 @@ func parseOrderDetails(input *orderResponse) (*OrderDetails, error) {
 		Status:           input.Status,
 		CurrencyPairCode: input.CurrencyPairCode,
 		Price:            input.Price,
+		Quantity:         quantity,
 		FilledQuantity:   filledQty,
 		Executions: 	  executions,
 	}, nil
