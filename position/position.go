@@ -121,6 +121,9 @@ func beginPosition(productDetails *qryptos.ProductDetails, budget float64) (*des
 
 func (p *desiredPosition) closeOpenPositions(ctx *context) error {
 	buyOrder := ctx.findOrder(p.buyOrderId)
+	if buyOrder == nil {
+		return nil
+	}
 	executions := buyOrder.Executions
 
 	for _, execution := range executions {
