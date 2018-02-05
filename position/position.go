@@ -144,6 +144,10 @@ func (p *desiredPosition) closeOpenPositions(ctx *context) error {
 func (p *desiredPosition) Closed(ctx *context) bool {
 	fmt.Println("[desiredPosition.Closed]", "Checking buy order status.", p.buyOrderId)
 	openOrder := ctx.findOrder(p.buyOrderId)
+	if openOrder == nil {
+		// Assume brand new and data not loaded into context
+		return false
+	}
 	if openOrder.Status == "live" {
 		return false
 	}
@@ -151,6 +155,10 @@ func (p *desiredPosition) Closed(ctx *context) bool {
 	for _, pos := range p.positions {
 		fmt.Println("[desiredPosition.Closed]", "Checking sell order status.", pos.closingOrderId)
 		closeOrder := ctx.findOrder(pos.closingOrderId)
+		if closeOrder == nil {
+			// Assume brand new and data not loaded into context
+			return false
+		}
 		if closeOrder.Status == "live" {
 			return false
 		}
