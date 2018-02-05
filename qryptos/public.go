@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"fmt"
 )
 
 const (
@@ -47,29 +48,39 @@ func (c *PublicClient) FetchProducts() ([]*ProductDetails, error) {
 		return []*ProductDetails{}, err
 	}
 
-	out := make([]*ProductDetails, len(parsedResponse))
-	for i, respDetail := range parsedResponse {
+	out := make([]*ProductDetails, 0, len(parsedResponse))
+	for _, respDetail := range parsedResponse {
 		prodId, err := strconv.Atoi(respDetail.ID)
 		if err != nil {
+			fmt.Println("[FetchProducts] Error parsing product ID:", err.Error())
 			return []*ProductDetails{}, err
 		}
 
+		if respDetail.MarketAsk == "" {
+			continue
+		}
 		marketAsk, err := strconv.ParseFloat(respDetail.MarketAsk, 64)
 		if err != nil {
+			fmt.Println("[FetchProducts] Error parsing MarketAsk:", err.Error())
 			return []*ProductDetails{}, err
 		}
 
+		if respDetail.MarketBid == "" {
+			continue
+		}
 		marketBid, err := strconv.ParseFloat(respDetail.MarketBid, 64)
 		if err != nil {
+			fmt.Println("[FetchProducts] Error parsing MarketBid:", err.Error())
 			return []*ProductDetails{}, err
 		}
 
 		vol24Hr, err := strconv.ParseFloat(respDetail.Volume24Hr, 64)
 		if err != nil {
+			fmt.Println("[FetchProducts] Error parsing Volume24Hr:", err.Error())
 			return []*ProductDetails{}, err
 		}
 
-		out[i] = &ProductDetails{
+		out = append(out, &ProductDetails{
 			ProductID:        prodId,
 			Currency:         respDetail.Currency,
 			BaseCurrency:     respDetail.BaseCurrency,
@@ -79,7 +90,7 @@ func (c *PublicClient) FetchProducts() ([]*ProductDetails, error) {
 			MarketBid:        marketBid,
 			Volume24Hour:     vol24Hr,
 			Disabled:         respDetail.Disabled,
-		}
+		})
 	}
 
 	return out, nil

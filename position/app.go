@@ -40,6 +40,7 @@ func getProductDetails() (*qryptos.ProductDetails, error) {
 	// Get currency details
 	allProducts, err := qryptos.DefaultClient().FetchProducts()
 	if err != nil {
+		fmt.Println("[getProductDetails] Error fetching products:", err.Error())
 		return nil, err
 	}
 
