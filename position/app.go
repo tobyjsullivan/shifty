@@ -1,11 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/tobyjsullivan/shifty/qryptos"
 	"os"
 	"time"
-	"errors"
 )
 
 const (
@@ -13,14 +13,13 @@ const (
 	loopDelay     = 30 * time.Second
 )
 
-
 var (
-	apiTokenId   = os.Getenv("QRYPTOS_API_TOKEN_ID")
-	apiSecretKey = os.Getenv("QRYPTOS_API_SECRET_KEY")
+	apiTokenId    = os.Getenv("QRYPTOS_API_TOKEN_ID")
+	apiSecretKey  = os.Getenv("QRYPTOS_API_SECRET_KEY")
 	baseCurrency  = os.Getenv("POSITION_BASE_CURRENCY")
 	quoteCurrency = os.Getenv("POSITION_QUOTE_CURRENCY")
 
-	client           = &qryptos.PrivateClient{
+	client = &qryptos.PrivateClient{
 		ApiTokenID:   apiTokenId,
 		ApiSecretKey: apiSecretKey,
 	}

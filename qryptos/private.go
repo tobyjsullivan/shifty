@@ -27,16 +27,16 @@ type OrderDetails struct {
 	Side             string
 	Status           string
 	CurrencyPairCode string
-	Price			 float64
+	Price            float64
 	Quantity         float64
 	FilledQuantity   float64
-	Executions		 []*ExecutionDetails
+	Executions       []*ExecutionDetails
 }
 
 type ExecutionDetails struct {
-	ID int
+	ID       int
 	Quantity float64
-	Price float64
+	Price    float64
 }
 
 func (c *PrivateClient) generateJWT(uri *url.URL) (string, error) {
@@ -63,22 +63,22 @@ type ordersResponse struct {
 }
 
 type orderResponse struct {
-	ID               int    `json:"id"`
-	Side             string `json:"side"`
-	Status           string `json:"status"`
-	CurrencyPairCode string `json:"currency_pair_code"`
-	Price 			 float64 `json:"price"`
-	Quantity         string `json:"quantity"`
-	FilledQuantity   string `json:"filled_quantity"`
-	Executions	[]*executionResponse `json:"executions"`
+	ID               int                  `json:"id"`
+	Side             string               `json:"side"`
+	Status           string               `json:"status"`
+	CurrencyPairCode string               `json:"currency_pair_code"`
+	Price            float64              `json:"price"`
+	Quantity         string               `json:"quantity"`
+	FilledQuantity   string               `json:"filled_quantity"`
+	Executions       []*executionResponse `json:"executions"`
 }
 
 type executionResponse struct {
-	ID int `json:"id"`
-	Quantity string `json:"quantity"`
-	Price string `json:"price"`
+	ID        int    `json:"id"`
+	Quantity  string `json:"quantity"`
+	Price     string `json:"price"`
 	TakerSide string `json:"taker_side"`
-	MySide string `json:"my_side"`
+	MySide    string `json:"my_side"`
 }
 
 func (c *PrivateClient) FetchOrders() ([]*OrderDetails, error) {
@@ -235,7 +235,7 @@ func (c *PrivateClient) EditOrder(orderId int, quantity, price float64) error {
 	payload := &fmtEditOrder{
 		Order: &fmtEditOrderModel{
 			Quantity: qtyString,
-			Price: priceString,
+			Price:    priceString,
 		},
 	}
 
@@ -297,9 +297,9 @@ type fmtEditOrder struct {
 	Order *fmtEditOrderModel `json:"order"`
 }
 
-type fmtEditOrderModel struct{
+type fmtEditOrderModel struct {
 	Quantity string `json:"quantity"`
-	Price string `json:"price"`
+	Price    string `json:"price"`
 }
 
 func parseExecutions(input []*executionResponse) ([]*ExecutionDetails, error) {
@@ -317,9 +317,9 @@ func parseExecutions(input []*executionResponse) ([]*ExecutionDetails, error) {
 		}
 
 		out = append(out, &ExecutionDetails{
-			ID: resp.ID,
+			ID:       resp.ID,
 			Quantity: quantity,
-			Price: price,
+			Price:    price,
 		})
 	}
 
@@ -350,6 +350,6 @@ func parseOrderDetails(input *orderResponse) (*OrderDetails, error) {
 		Price:            input.Price,
 		Quantity:         quantity,
 		FilledQuantity:   filledQty,
-		Executions: 	  executions,
+		Executions:       executions,
 	}, nil
 }

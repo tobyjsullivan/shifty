@@ -1,23 +1,22 @@
 package main
 
 import (
-	"time"
 	"github.com/dgrijalva/jwt-go"
-	"strconv"
 	"os"
+	"strconv"
+	"time"
 )
 
 var (
-	tokenId = os.Getenv("TOKEN_ID")
+	tokenId    = os.Getenv("TOKEN_ID")
 	userSecret = os.Getenv("USER_SECRET")
-	path = os.Getenv("REQUEST_PATH")
-	nonce = time.Now().UnixNano() / 1000000
+	path       = os.Getenv("REQUEST_PATH")
+	nonce      = time.Now().UnixNano() / 1000000
 )
 
 func main() {
 	println("Token ID:", tokenId)
 	println("Nonce:", nonce)
-
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"path":     path,

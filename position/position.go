@@ -1,15 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"github.com/tobyjsullivan/shifty/qryptos"
 	"math"
 	"time"
-	"fmt"
 )
 
 type context struct {
 	productDetails *qryptos.ProductDetails
-	orders []*qryptos.OrderDetails
+	orders         []*qryptos.OrderDetails
 }
 
 func (ctx *context) findOrder(orderId int) *qryptos.OrderDetails {
@@ -24,13 +24,13 @@ func (ctx *context) findOrder(orderId int) *qryptos.OrderDetails {
 
 type desiredPosition struct {
 	buyOrderId int
-	positions []*openedPosition
+	positions  []*openedPosition
 }
 
 type openedPosition struct {
 	openingExecutionId int
-	openingPrice float64
-	closingOrderId int
+	openingPrice       float64
+	closingOrderId     int
 }
 
 func runBudget() error {
@@ -55,7 +55,6 @@ func runBudget() error {
 			fmt.Println("[runBudget]", "error in fetchContext:", err.Error())
 			continue
 		}
-
 
 		if err = desired.closeOpenPositions(ctx); err != nil {
 			fmt.Println("[runBudget]", "error in closeOpenPositions:", err.Error())
@@ -97,7 +96,7 @@ func fetchContext() (*context, error) {
 
 	return &context{
 		productDetails: details,
-		orders: orders,
+		orders:         orders,
 	}, nil
 }
 
@@ -146,9 +145,9 @@ func (p *desiredPosition) closeOpenPositions(ctx *context) error {
 		}
 
 		p.positions = append(p.positions, &openedPosition{
-			openingExecutionId:execution.ID,
-			openingPrice: execution.Price,
-			closingOrderId: orderId,
+			openingExecutionId: execution.ID,
+			openingPrice:       execution.Price,
+			closingOrderId:     orderId,
 		})
 	}
 
@@ -236,7 +235,7 @@ func closePosition(ctx *context, buyPrice, quantity float64) (int, error) {
 	sideValue := "sell"
 
 	productId := ctx.productDetails.ProductID
-	price := math.Max(ctx.productDetails.MarketAsk - 0.00000001, buyPrice + 0.00000001)
+	price := math.Max(ctx.productDetails.MarketAsk-0.00000001, buyPrice+0.00000001)
 
 	orderId, err := client.CreateLimitOrder(productId, sideValue, quantity, price)
 	if err != nil {
