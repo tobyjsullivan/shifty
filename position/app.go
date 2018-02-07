@@ -10,7 +10,7 @@ import (
 
 const (
 	capitalAmount = 0.01
-	minimumSplit = 1.02
+	minimumSplit = 1.01
 	loopDelay     = 10 * time.Second
 )
 

@@ -41,14 +41,15 @@ type position struct {
 }
 
 func runBudget() {
-	fmt.Println("[runBudget]", "Starting run...")
+	fmt.Println("INFO [runBudget] Starting run...")
 
 	ticker := time.NewTicker(loopDelay)
 	for range ticker.C {
+		fmt.Println("DEBUG [runBudget] Tick.")
 		// Load up the current context
 		ctx, err := fetchContext()
 		if err != nil {
-			fmt.Println("[runBudget]", "error in fetchContext:", err.Error())
+			fmt.Println("ERROR [runBudget]", "error in fetchContext:", err.Error())
 			continue
 		}
 
@@ -62,26 +63,30 @@ func runBudget() {
 				openedPositions[i] = openedPositions[len(openedPositions) - 1]
 				openedPositions = openedPositions[:len(openedPositions) - 1]
 
-				fmt.Println("Removed closed position. Order #", closingOrder.ID)
+				fmt.Println("INFO [runBudget] Removed closed position. Order #", closingOrder.ID)
 			}
 		}
 
 		// Check for and record any new open position
 		priorExecutionIds := make(map[int]bool)
 		for _, position := range openedPositions {
+			fmt.Println("DEBUG [runBudget] Found execution in opened positions.", position.openingExecutionId)
 			priorExecutionIds[position.openingExecutionId] = true
 		}
 		for _, position := range closedPositions {
+			fmt.Println("DEBUG [runBudget] Found execution in closed positions.", position.openingExecutionId)
 			priorExecutionIds[position.openingExecutionId] = true
 		}
 		for _, buyOrderId := range buyOrderIds {
 			buyOrder := ctx.findOrder(buyOrderId)
 			if buyOrder == nil {
+				fmt.Println("INFO [runBudget] Could not find buyOrder.", buyOrderId)
 				continue
 			}
 
 			for _, execution := range buyOrder.Executions {
 				if !priorExecutionIds[execution.ID] {
+					fmt.Println("INFO [runBudget] Detected new opened position from execution.", execution.ID)
 					openedPositions = append(openedPositions, &position{
 						openingExecutionId: execution.ID,
 						openingPrice: execution.Price,
@@ -106,6 +111,7 @@ func runBudget() {
 				remainingBudget += closingOrder.FilledQuantity * position.openingPrice
 			}
 		}
+		fmt.Println("DEBUG [runBudget] Computed remaining budget:", remainingBudget)
 
 		// Update bid with remaining budget by editing order if possible or cancelling and creating a new order
 		buyPrice := ctx.productDetails.MarketBid + 0.00000001
@@ -120,43 +126,47 @@ func runBudget() {
 
 			// No need to update if we're already a good price
 			if buyOrder.Price >= ctx.productDetails.MarketBid {
+				fmt.Println("DEBUG [runBudget] Current buy order is at market bid.", buyOrderId)
 				shouldUpdateOrder = false
 				continue
 			}
 
 			if buyOrder.CanEdit() {
+				fmt.Println("INFO [runBudget] Editing buy order.", buyOrderId, "Current market bid:", ctx.productDetails.MarketBid)
 				editableBuyOrderFound = true
 				err := client.EditOrder(buyOrder.ID, buyQuantity, buyPrice)
 				if err != nil {
-					fmt.Println("[runBudget] Error while editing order:", err.Error())
+					fmt.Println("ERROR [runBudget] Error while editing order:", err.Error())
 					continue
 				}
 			} else {
 				err := client.CancelOrder(buyOrder.ID)
 				if err != nil {
-					fmt.Println("[runBudget] Error while cancelling order:", err.Error())
+					fmt.Println("ERROR [runBudget] Error while cancelling order:", err.Error())
 					continue
 				}
 			}
 		}
 		// Create a new buy order if none was found to edit (and there's budget)
 		if shouldUpdateOrder && !editableBuyOrderFound && remainingBudget > 0.0 {
-			fmt.Println("[runBudget] Creating new order")
+			fmt.Println("INFO [runBudget] Creating new order")
 			orderId, err := client.CreateLimitOrder(ctx.productDetails.ProductID, "buy", buyQuantity, buyPrice)
 			if err != nil {
-				fmt.Println("[runBudget] Error while creating order:", err.Error())
+				fmt.Println("ERROR [runBudget] Error while creating order:", err.Error())
 				continue
 			}
 			buyOrderIds = append(buyOrderIds, orderId)
+			fmt.Println("INFO [runBudget] New order created.", orderId)
 		}
 
 		// Update any sell orders that are priced above current market ask
 		for _, position := range openedPositions {
 			sellOrderId := position.closingOrderId
 			if sellOrderId == 0 {
+				fmt.Println("INFO [runBudget] Closing position.")
 				closingId, err := closePosition(ctx, position.openingPrice, position.quantity)
 				if err != nil {
-					fmt.Println("[runBudget] Error closing position:", err.Error())
+					fmt.Println("ERROR [runBudget] Error closing position:", err.Error())
 					continue
 				}
 				position.closingOrderId = closingId
@@ -164,6 +174,7 @@ func runBudget() {
 			}
 			sellOrder := ctx.findOrder(sellOrderId)
 			if sellOrder == nil || !sellOrder.CanEdit() {
+				fmt.Println("INFO [runBudget] Either cannot find or cannot edit order.", sellOrderId)
 				continue
 			}
 
@@ -173,12 +184,12 @@ func runBudget() {
 			if sellOrder.Price > mktAsk && sellOrder.Price > minAsk {
 				price := math.Max(minAsk, mktAsk-0.00000001)
 				fmt.Println(fmt.Sprintf(
-					"[runBudget] Sell price is %.08f but current market ask is %.08f so editing order",
+					"INFO [runBudget] Sell price is %.08f but current market ask is %.08f so editing order",
 					sellOrder.Price,
 					mktAsk,
 				))
 				if err := client.EditOrder(sellOrderId, sellOrder.Quantity, price); err != nil {
-					fmt.Println("[runBudget] Error editing sell order:", err.Error())
+					fmt.Println("ERROR [runBudget] Error editing sell order:", err.Error())
 					continue
 				}
 			}
