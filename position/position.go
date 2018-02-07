@@ -28,11 +28,6 @@ func (ctx *context) findOrder(orderId int) *qryptos.OrderDetails {
 	return nil
 }
 
-type desiredPosition struct {
-	buyOrderId int
-	positions  []*position
-}
-
 type position struct {
 	openingExecutionId int
 	openingPrice       float64
@@ -114,7 +109,7 @@ func runBudget() {
 		fmt.Println("DEBUG [runBudget] Computed remaining budget:", remainingBudget)
 
 		// Update bid with remaining budget by editing order if possible or cancelling and creating a new order
-		buyPrice := ctx.productDetails.MarketBid + 0.00000001
+		buyPrice := math.Min(ctx.productDetails.MarketBid + minimalUnit, ctx.productDetails.MarketAsk - minimalUnit)
 		buyQuantity := remainingBudget / buyPrice
 		var editableBuyOrderFound bool
 		shouldUpdateOrder := true
@@ -124,7 +119,7 @@ func runBudget() {
 				continue
 			}
 
-			// No need to update if we're already a good price
+			// No need to update if we're already the best price
 			if buyOrder.Price >= ctx.productDetails.MarketBid {
 				fmt.Println("DEBUG [runBudget] Current buy order is at market bid.", buyOrderId)
 				shouldUpdateOrder = false
@@ -159,12 +154,12 @@ func runBudget() {
 			fmt.Println("INFO [runBudget] New order created.", orderId)
 		}
 
-		// Update any sell orders that are priced above current market ask
+		// Update any sell orders that are priced at current market ask (cannot go below market ask or we'll compete with our self)
 		for _, position := range openedPositions {
 			sellOrderId := position.closingOrderId
 			if sellOrderId == 0 {
 				fmt.Println("INFO [runBudget] Closing position.")
-				closingId, err := closePosition(ctx, position.openingPrice, position.quantity)
+				closingId, err := closePosition(ctx, position.openingPrice * minimumSplit, position.quantity)
 				if err != nil {
 					fmt.Println("ERROR [runBudget] Error closing position:", err.Error())
 					continue
@@ -182,7 +177,7 @@ func runBudget() {
 			minAsk := position.openingPrice * minimumSplit
 
 			if sellOrder.Price > mktAsk && sellOrder.Price > minAsk {
-				price := math.Max(minAsk, mktAsk-0.00000001)
+				price := math.Max(minAsk, mktAsk)
 				fmt.Println(fmt.Sprintf(
 					"INFO [runBudget] Sell price is %.08f but current market ask is %.08f so editing order",
 					sellOrder.Price,
@@ -214,123 +209,12 @@ func fetchContext() (*context, error) {
 	}, nil
 }
 
-func (p *desiredPosition) closeOpenPositions(ctx *context) error {
-	buyOrder := ctx.findOrder(p.buyOrderId)
-	if buyOrder == nil {
-		return nil
-	}
-	executions := buyOrder.Executions
-
-	for _, execution := range executions {
-		found := false
-		for _, position := range p.positions {
-			if position.openingExecutionId == execution.ID {
-				found = true
-				break
-			}
-		}
-
-		if found {
-			continue
-		}
-		fmt.Println("[closeOpenPositions]", "New open position found.", execution.ID)
-
-		orderId, err := closePosition(ctx, execution.Price, execution.Quantity)
-		if err != nil {
-			return err
-		}
-
-		p.positions = append(p.positions, &position{
-			openingExecutionId: execution.ID,
-			openingPrice:       execution.Price,
-			closingOrderId:     orderId,
-		})
-	}
-
-	return nil
-}
-
-func (p *desiredPosition) matchMarketBid(ctx *context) error {
-	buyOrder := ctx.findOrder(p.buyOrderId)
-	if buyOrder == nil {
-		return nil
-	}
-
-	mktBid := ctx.productDetails.MarketBid
-
-	if buyOrder.CanEdit() && buyOrder.Price < mktBid {
-		fmt.Println(fmt.Sprintf(
-			"[matchMarketBid] Buy price is %.08f but current market bid is %.08f so editing order",
-			buyOrder.Price,
-			mktBid,
-		))
-		qty := capitalAmount / mktBid
-		if err := client.EditOrder(p.buyOrderId, qty, mktBid); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (p *desiredPosition) matchMarketAsk(ctx *context) error {
-	for _, position := range p.positions {
-		sellOrderId := position.closingOrderId
-		sellOrder := ctx.findOrder(sellOrderId)
-		if sellOrder == nil || !sellOrder.CanEdit() {
-			continue
-		}
-
-		mktAsk := ctx.productDetails.MarketAsk
-		minAsk := position.openingPrice
-
-		if sellOrder.Price > mktAsk && sellOrder.Price > minAsk {
-			price := math.Max(minAsk, mktAsk-0.00000001)
-			fmt.Println(fmt.Sprintf(
-				"[matchMarketAsk] Sell price is %.08f but current market ask is %.08f so editing order",
-				sellOrder.Price,
-				mktAsk,
-			))
-			if err := client.EditOrder(sellOrderId, sellOrder.Quantity, price); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (p *desiredPosition) closed(ctx *context) bool {
-	openOrder := ctx.findOrder(p.buyOrderId)
-	if openOrder == nil {
-		// Assume brand new and data not loaded into context
-		return false
-	}
-	if openOrder.Status == "live" {
-		return false
-	}
-
-	for _, pos := range p.positions {
-		fmt.Println("[desiredPosition.closed]", "Checking sell order status.", pos.closingOrderId)
-		closeOrder := ctx.findOrder(pos.closingOrderId)
-		if closeOrder == nil {
-			// Assume brand new and data not loaded into context
-			return false
-		}
-		if closeOrder.Status == "live" {
-			return false
-		}
-	}
-
-	return true
-}
-
-func closePosition(ctx *context, buyPrice, quantity float64) (int, error) {
+func closePosition(ctx *context, minPrice, quantity float64) (int, error) {
 	fmt.Println("[closePosition]", "Creating sell order...")
 	sideValue := "sell"
 
 	productId := ctx.productDetails.ProductID
-	price := math.Max(ctx.productDetails.MarketAsk-0.00000001, buyPrice+0.00000001)
+	price := math.Max(ctx.productDetails.MarketAsk, minPrice)
 
 	orderId, err := client.CreateLimitOrder(productId, sideValue, quantity, price)
 	if err != nil {

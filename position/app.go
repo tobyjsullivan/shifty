@@ -12,6 +12,7 @@ const (
 	capitalAmount = 0.01
 	minimumSplit = 1.01
 	loopDelay     = 10 * time.Second
+	minimalUnit = 0.00000001
 )
 
 var (
