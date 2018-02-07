@@ -276,6 +276,42 @@ func (c *PrivateClient) EditOrder(orderId int, quantity, price float64) error {
 	return nil
 }
 
+func (c *PrivateClient) CancelOrder(orderId int) error {
+	fmt.Println("[CancelOrder] Cancelling order:", orderId)
+
+	endpoint := fmt.Sprintf("%s%s/%d/cancel", apiBaseUrl, ordersEndpoint, orderId)
+	req, err := http.NewRequest(http.MethodPut, endpoint, nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("X-Quoine-API-Version", "2")
+	req.Header.Set("Content-Type", "application/json")
+
+	token, err := c.generateJWT(req.URL)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("X-Quoine-Auth", token)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode != 200 {
+		var buf bytes.Buffer
+		buf.ReadFrom(res.Body)
+
+		fmt.Printf("[CancelOrder] Error: %s\n", buf)
+
+		return errors.New(fmt.Sprintf("unexpected status: %d", res.StatusCode))
+	}
+
+	return nil
+}
+
 func (o *OrderDetails) CanEdit() bool {
 	return o.Status == "live" && o.FilledQuantity == 0.0
 }

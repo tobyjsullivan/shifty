@@ -10,6 +10,7 @@ import (
 
 const (
 	capitalAmount = 0.01
+	minimumSplit = 1.02
 	loopDelay     = 10 * time.Second
 )
 
@@ -28,12 +29,7 @@ var (
 func main() {
 	fmt.Println("[main] Running with token ID:", apiTokenId)
 
-	for {
-		err := runBudget()
-		if err != nil {
-			fmt.Println("[main]", "error in runBudget:", err.Error())
-		}
-	}
+	runBudget()
 }
 
 func getProductDetails() (*qryptos.ProductDetails, error) {
