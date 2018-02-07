@@ -155,16 +155,58 @@ func runBudget() {
 		}
 
 		// Update any sell orders that are priced above current market ask (cannot go below market ask or we'll compete with our self)
-		for _, position := range openedPositions {
-			sellOrderId := position.closingOrderId
+		for i, pos := range openedPositions {
+			sellOrderId := pos.closingOrderId
 			if sellOrderId == 0 {
 				fmt.Println("INFO [runBudget] Closing position.")
-				closingId, err := closePosition(ctx, position.openingPrice * minimumSplit, position.quantity)
+				// Try to merge new position with another so that we don't get stuck with positions that are too small to close
+				var mergeCandidate *position
+				for j := 0; j < len(openedPositions); j++ {
+					if i == j {
+						continue
+					}
+
+					current := openedPositions[j]
+					if current.closingOrderId != 0 {
+						if sellOrder := ctx.findOrder(current.closingOrderId); sellOrder == nil || !sellOrder.CanEdit() {
+							continue
+						}
+					}
+					if current.openingPrice == pos.openingPrice {
+						mergeCandidate = current
+						break
+					}
+				}
+				if mergeCandidate != nil {
+					// Add this positions quantity to the mergeCandidate
+					mergeCandidate.quantity += pos.quantity
+					pos.quantity = 0
+
+					// Edit the quantity on the mergeCandidates order
+					if mergeCandidate.closingOrderId != 0 {
+						sellOrder := ctx.findOrder(mergeCandidate.closingOrderId)
+						err := client.EditOrder(mergeCandidate.closingOrderId, mergeCandidate.quantity, sellOrder.Price)
+						if err != nil {
+							fmt.Println("ERROR [runBudget] Error editing order after position merge:", err.Error())
+							continue
+						}
+					}
+
+					closedPositions = append(closedPositions, pos)
+
+					// Delete this position
+					openedPositions[i] = openedPositions[len(openedPositions) - 1]
+					openedPositions = openedPositions[:len(openedPositions) - 1]
+					fmt.Println("INFO [runBudget] Merged positions")
+					continue
+				}
+
+				closingId, err := closePosition(ctx, pos.openingPrice * minimumSplit, pos.quantity)
 				if err != nil {
 					fmt.Println("ERROR [runBudget] Error closing position:", err.Error())
 					continue
 				}
-				position.closingOrderId = closingId
+				pos.closingOrderId = closingId
 				continue
 			}
 			sellOrder := ctx.findOrder(sellOrderId)
@@ -174,7 +216,7 @@ func runBudget() {
 			}
 
 			mktAsk := ctx.productDetails.MarketAsk
-			minAsk := position.openingPrice * minimumSplit
+			minAsk := pos.openingPrice * minimumSplit
 
 			if mktAsk < minAsk {
 				fmt.Println("DEBUG [runBudget] Current market ask is below minimum ask for sell order.", sellOrderId)
