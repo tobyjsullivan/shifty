@@ -154,7 +154,7 @@ func runBudget() {
 			fmt.Println("INFO [runBudget] New order created.", orderId)
 		}
 
-		// Update any sell orders that are priced at current market ask (cannot go below market ask or we'll compete with our self)
+		// Update any sell orders that are priced above current market ask (cannot go below market ask or we'll compete with our self)
 		for _, position := range openedPositions {
 			sellOrderId := position.closingOrderId
 			if sellOrderId == 0 {
@@ -175,6 +175,10 @@ func runBudget() {
 
 			mktAsk := ctx.productDetails.MarketAsk
 			minAsk := position.openingPrice * minimumSplit
+
+			if mktAsk < minAsk {
+				fmt.Println("DEBUG [runBudget] Current market ask is below minimum ask for sell order.", sellOrderId)
+			}
 
 			if sellOrder.Price > mktAsk && sellOrder.Price > minAsk {
 				price := math.Max(minAsk, mktAsk)
