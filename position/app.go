@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	capitalAmount = 0.01
+	capitalAmount = qryptos.Amount(1000000)
 	loopDelay     = 10 * time.Second
-	minimalUnit = 0.00000001
 )
 
 var (
@@ -22,10 +21,7 @@ var (
 	quoteCurrency = os.Getenv("POSITION_QUOTE_CURRENCY")
 	minimumSplit = 1.01
 
-	client = &qryptos.PrivateClient{
-		ApiTokenID:   apiTokenId,
-		ApiSecretKey: apiSecretKey,
-	}
+	client = qryptos.NewPrivateClient(apiTokenId, apiSecretKey)
 )
 
 func init() {

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/tobyjsullivan/shifty/qryptos"
-	"math"
 	"time"
 )
 
@@ -30,8 +29,8 @@ func (ctx *context) findOrder(orderId int) *qryptos.OrderDetails {
 
 type position struct {
 	openingExecutionId int
-	openingPrice       float64
-	quantity           float64
+	openingPrice       qryptos.Amount
+	quantity           qryptos.Amount
 	closingOrderId     int
 }
 
@@ -75,7 +74,7 @@ func runBudget() {
 		for _, buyOrderId := range buyOrderIds {
 			buyOrder := ctx.findOrder(buyOrderId)
 			if buyOrder == nil {
-				fmt.Println("INFO [runBudget] Could not find buyOrder.", buyOrderId)
+				fmt.Println("DEBUG [runBudget] Could not find buyOrder.", buyOrderId)
 				continue
 			}
 
@@ -109,8 +108,13 @@ func runBudget() {
 		fmt.Println("DEBUG [runBudget] Computed remaining budget:", remainingBudget)
 
 		// Update bid with remaining budget by editing order if possible or cancelling and creating a new order
-		buyPrice := math.Min(ctx.productDetails.MarketBid + minimalUnit, ctx.productDetails.MarketAsk - minimalUnit)
-		buyQuantity := remainingBudget / buyPrice
+		maxBid := ctx.productDetails.MarketAsk - qryptos.MinimalUnit
+		buyPrice := ctx.productDetails.MarketBid
+		if buyPrice > maxBid {
+			buyPrice = maxBid
+		}
+		var buyQuantity qryptos.Amount
+		buyQuantity.FromDecimal(float64(remainingBudget) / float64(buyPrice))
 		var editableBuyOrderFound bool
 		shouldUpdateOrder := true
 		for _, buyOrderId := range buyOrderIds {
@@ -120,6 +124,7 @@ func runBudget() {
 			}
 
 			// No need to update if we're already the best price
+			// TODO Determine if we're ahead of the pack and, if so, drop back
 			if buyOrder.Price >= ctx.productDetails.MarketBid {
 				fmt.Println("DEBUG [runBudget] Current buy order is at market bid.", buyOrderId)
 				shouldUpdateOrder = false
@@ -201,7 +206,8 @@ func runBudget() {
 					continue
 				}
 
-				closingId, err := closePosition(ctx, pos.openingPrice * minimumSplit, pos.quantity)
+				minPrice := qryptos.Amount(float64(pos.openingPrice) * minimumSplit)
+				closingId, err := closePosition(ctx, minPrice, pos.quantity)
 				if err != nil {
 					fmt.Println("ERROR [runBudget] Error closing position:", err.Error())
 					continue
@@ -216,14 +222,17 @@ func runBudget() {
 			}
 
 			mktAsk := ctx.productDetails.MarketAsk
-			minAsk := pos.openingPrice * minimumSplit
+			minAsk := qryptos.Amount(float64(pos.openingPrice) * minimumSplit)
 
 			if mktAsk < minAsk {
 				fmt.Println("DEBUG [runBudget] Current market ask is below minimum ask for sell order.", sellOrderId)
 			}
 
 			if sellOrder.Price > mktAsk && sellOrder.Price > minAsk {
-				price := math.Max(minAsk, mktAsk)
+				price := mktAsk
+				if price < minAsk {
+					price = minAsk
+				}
 				fmt.Println(fmt.Sprintf(
 					"INFO [runBudget] Sell price is %.08f but current market ask is %.08f so editing order",
 					sellOrder.Price,
@@ -255,12 +264,15 @@ func fetchContext() (*context, error) {
 	}, nil
 }
 
-func closePosition(ctx *context, minPrice, quantity float64) (int, error) {
+func closePosition(ctx *context, minPrice, quantity qryptos.Amount) (int, error) {
 	fmt.Println("[closePosition]", "Creating sell order...")
 	sideValue := "sell"
 
 	productId := ctx.productDetails.ProductID
-	price := math.Max(ctx.productDetails.MarketAsk, minPrice)
+	price := ctx.productDetails.MarketAsk
+	if price < minPrice {
+		price = minPrice
+	}
 
 	orderId, err := client.CreateLimitOrder(productId, sideValue, quantity, price)
 	if err != nil {

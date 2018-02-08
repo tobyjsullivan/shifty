@@ -18,8 +18,17 @@ const (
 )
 
 type PrivateClient struct {
-	ApiTokenID   string
-	ApiSecretKey string
+	tokenId    string
+	secretKey  string
+	apiBaseUrl string
+}
+
+func NewPrivateClient(apiTokenID, apiSecretKey string) *PrivateClient {
+	return &PrivateClient{
+		tokenId:    apiTokenID,
+		secretKey:  apiSecretKey,
+		apiBaseUrl: qryptosApiBaseUrl,
+	}
 }
 
 type OrderDetails struct {
@@ -27,16 +36,16 @@ type OrderDetails struct {
 	Side             string
 	Status           string
 	CurrencyPairCode string
-	Price            float64
-	Quantity         float64
-	FilledQuantity   float64
+	Price            Amount
+	Quantity         Amount
+	FilledQuantity   Amount
 	Executions       []*ExecutionDetails
 }
 
 type ExecutionDetails struct {
 	ID       int
-	Quantity float64
-	Price    float64
+	Quantity Amount
+	Price    Amount
 }
 
 func (c *PrivateClient) generateJWT(uri *url.URL) (string, error) {
@@ -50,12 +59,25 @@ func (c *PrivateClient) generateJWT(uri *url.URL) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"path":     path,
 		"nonce":    strconv.FormatInt(nonce, 10),
-		"token_id": c.ApiTokenID,
+		"token_id": c.tokenId,
 	})
 
-	tokenString, err := token.SignedString([]byte(c.ApiSecretKey))
+	tokenString, err := token.SignedString([]byte(c.secretKey))
 
 	return tokenString, err
+}
+
+func (c *PrivateClient) signRequest(req *http.Request) error {
+	token, err := c.generateJWT(req.URL)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("X-Quoine-Auth", token)
+	req.Header.Set("X-Quoine-API-Version", "2")
+	req.Header.Set("Content-Type", "application/json")
+
+	return nil
 }
 
 type ordersResponse struct {
@@ -82,7 +104,7 @@ type executionResponse struct {
 }
 
 func (c *PrivateClient) FetchOrders() ([]*OrderDetails, error) {
-	endpoint := apiBaseUrl + ordersEndpoint
+	endpoint := c.apiBaseUrl + ordersEndpoint
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		return []*OrderDetails{}, err
@@ -93,14 +115,10 @@ func (c *PrivateClient) FetchOrders() ([]*OrderDetails, error) {
 	q.Set("with_details", "1")
 	req.URL.RawQuery = q.Encode()
 
-	req.Header.Set("X-Quoine-API-Version", "2")
-
-	token, err := c.generateJWT(req.URL)
+	err = c.signRequest(req)
 	if err != nil {
 		return []*OrderDetails{}, err
 	}
-
-	req.Header.Set("X-Quoine-Auth", token)
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -124,7 +142,7 @@ func (c *PrivateClient) FetchOrders() ([]*OrderDetails, error) {
 }
 
 func (c *PrivateClient) FetchOrder(orderId int) (*OrderDetails, error) {
-	endpoint := fmt.Sprintf("%s%s/%d", apiBaseUrl, ordersEndpoint, orderId)
+	endpoint := fmt.Sprintf("%s%s/%d", c.apiBaseUrl, ordersEndpoint, orderId)
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -133,14 +151,10 @@ func (c *PrivateClient) FetchOrder(orderId int) (*OrderDetails, error) {
 	q := req.URL.Query()
 	req.URL.RawQuery = q.Encode()
 
-	req.Header.Set("X-Quoine-API-Version", "2")
-
-	token, err := c.generateJWT(req.URL)
+	err = c.signRequest(req)
 	if err != nil {
 		return nil, err
 	}
-
-	req.Header.Set("X-Quoine-Auth", token)
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -155,11 +169,11 @@ func (c *PrivateClient) FetchOrder(orderId int) (*OrderDetails, error) {
 	return parseOrderDetails(&parsedResponse)
 }
 
-func (c *PrivateClient) CreateLimitOrder(productId int, side string, quantity, price float64) (int, error) {
+func (c *PrivateClient) CreateLimitOrder(productId int, side string, quantity, price Amount) (int, error) {
 	fmt.Println("[CreateLimitOrder] Creating order...")
 
-	qtyString := fmt.Sprintf("%.08f", quantity)
-	priceString := fmt.Sprintf("%.08f", price)
+	qtyString := fmt.Sprintf("%.08f", quantity.ToDecimal())
+	priceString := fmt.Sprintf("%.08f", price.ToDecimal())
 
 	payload := &fmtCreateOrder{
 		Order: &fmtCreateOrderModel{
@@ -178,21 +192,16 @@ func (c *PrivateClient) CreateLimitOrder(productId int, side string, quantity, p
 
 	fmt.Printf("[CreateLimitOrder] Body: %s\n", bodyString)
 
-	endpoint := apiBaseUrl + ordersEndpoint
+	endpoint := c.apiBaseUrl + ordersEndpoint
 	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(string(bodyString)))
 	if err != nil {
 		return 0, err
 	}
 
-	req.Header.Set("X-Quoine-API-Version", "2")
-	req.Header.Set("Content-Type", "application/json")
-
-	token, err := c.generateJWT(req.URL)
+	err = c.signRequest(req)
 	if err != nil {
 		return 0, err
 	}
-
-	req.Header.Set("X-Quoine-Auth", token)
 
 	fmt.Printf("[CreateLimitOrder] URL: %s\n", req.URL.String())
 
@@ -225,11 +234,11 @@ func (c *PrivateClient) CreateLimitOrder(productId int, side string, quantity, p
 	return parsedRes.ID, nil
 }
 
-func (c *PrivateClient) EditOrder(orderId int, quantity, price float64) error {
+func (c *PrivateClient) EditOrder(orderId int, quantity, price Amount) error {
 	fmt.Println("[EditOrder]", "Updating order:", orderId)
 
-	qtyString := fmt.Sprintf("%.08f", quantity)
-	priceString := fmt.Sprintf("%.08f", price)
+	qtyString := fmt.Sprintf("%.08f", quantity.ToDecimal())
+	priceString := fmt.Sprintf("%.08f", price.ToDecimal())
 
 	payload := &fmtEditOrder{
 		Order: &fmtEditOrderModel{
@@ -243,21 +252,16 @@ func (c *PrivateClient) EditOrder(orderId int, quantity, price float64) error {
 		return err
 	}
 
-	endpoint := fmt.Sprintf("%s%s/%d", apiBaseUrl, ordersEndpoint, orderId)
+	endpoint := fmt.Sprintf("%s%s/%d", c.apiBaseUrl, ordersEndpoint, orderId)
 	req, err := http.NewRequest(http.MethodPut, endpoint, strings.NewReader(string(bodyString)))
 	if err != nil {
 		return err
 	}
 
-	req.Header.Set("X-Quoine-API-Version", "2")
-	req.Header.Set("Content-Type", "application/json")
-
-	token, err := c.generateJWT(req.URL)
+	err = c.signRequest(req)
 	if err != nil {
 		return err
 	}
-
-	req.Header.Set("X-Quoine-Auth", token)
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -279,21 +283,16 @@ func (c *PrivateClient) EditOrder(orderId int, quantity, price float64) error {
 func (c *PrivateClient) CancelOrder(orderId int) error {
 	fmt.Println("[CancelOrder] Cancelling order:", orderId)
 
-	endpoint := fmt.Sprintf("%s%s/%d/cancel", apiBaseUrl, ordersEndpoint, orderId)
+	endpoint := fmt.Sprintf("%s%s/%d/cancel", c.apiBaseUrl, ordersEndpoint, orderId)
 	req, err := http.NewRequest(http.MethodPut, endpoint, nil)
 	if err != nil {
 		return err
 	}
 
-	req.Header.Set("X-Quoine-API-Version", "2")
-	req.Header.Set("Content-Type", "application/json")
-
-	token, err := c.generateJWT(req.URL)
+	err = c.signRequest(req)
 	if err != nil {
 		return err
 	}
-
-	req.Header.Set("X-Quoine-Auth", token)
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -341,15 +340,19 @@ func parseExecutions(input []*executionResponse) ([]*ExecutionDetails, error) {
 	var out []*ExecutionDetails
 
 	for _, resp := range input {
-		quantity, err := strconv.ParseFloat(resp.Quantity, 64)
+		var quantity Amount
+		fQuantity, err := strconv.ParseFloat(resp.Quantity, 64)
 		if err != nil {
 			return []*ExecutionDetails{}, err
 		}
+		quantity.FromDecimal(fQuantity)
 
-		price, err := strconv.ParseFloat(resp.Price, 64)
+		var price Amount
+		fPrice, err := strconv.ParseFloat(resp.Price, 64)
 		if err != nil {
 			return []*ExecutionDetails{}, err
 		}
+		price.FromDecimal(fPrice)
 
 		out = append(out, &ExecutionDetails{
 			ID:       resp.ID,
@@ -367,22 +370,29 @@ func parseOrderDetails(input *orderResponse) (*OrderDetails, error) {
 		return nil, err
 	}
 
-	quantity, err := strconv.ParseFloat(input.Quantity, 64)
+	var quantity Amount
+	fQuantity, err := strconv.ParseFloat(input.Quantity, 64)
 	if err != nil {
 		return nil, err
 	}
+	quantity.FromDecimal(fQuantity)
 
-	filledQty, err := strconv.ParseFloat(input.FilledQuantity, 64)
+	var filledQty Amount
+	fFilledQty, err := strconv.ParseFloat(input.FilledQuantity, 64)
 	if err != nil {
 		return nil, err
 	}
+	filledQty.FromDecimal(fFilledQty)
+
+	var price Amount
+	price.FromDecimal(input.Price)
 
 	return &OrderDetails{
 		ID:               input.ID,
 		Side:             input.Side,
 		Status:           input.Status,
 		CurrencyPairCode: input.CurrencyPairCode,
-		Price:            input.Price,
+		Price:            price,
 		Quantity:         quantity,
 		FilledQuantity:   filledQty,
 		Executions:       executions,

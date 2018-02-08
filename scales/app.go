@@ -85,12 +85,12 @@ func buildReport(details *qryptos.ProductDetails) *report {
 
 	return &report{
 		currencyPair:  details.CurrencyPairCode,
-		bid:           details.MarketBid,
-		ask:           details.MarketAsk,
-		spread:        spread,
-		volume24Hr:    details.Volume24Hour,
-		volume24HrBtc: volume24HrBtc,
-		weight:        spread * details.Volume24Hour,
+		bid:           details.MarketBid.ToDecimal(),
+		ask:           details.MarketAsk.ToDecimal(),
+		spread:        spread.ToDecimal(),
+		volume24Hr:    details.Volume24Hour.ToDecimal(),
+		volume24HrBtc: volume24HrBtc.ToDecimal(),
+		weight:        spread.ToDecimal() * details.Volume24Hour.ToDecimal(),
 	}
 }
 

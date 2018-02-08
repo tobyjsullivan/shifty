@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	apiBaseUrl       = "https://api.qryptos.com"
-	productsEndpoint = "/products"
+	qryptosApiBaseUrl = "https://api.qryptos.com"
+	productsEndpoint  = "/products"
 )
 
 type PublicClient struct {
@@ -21,9 +21,9 @@ type ProductDetails struct {
 	BaseCurrency     string
 	QuotedCurrency   string
 	CurrencyPairCode string
-	MarketAsk        float64
-	MarketBid        float64
-	Volume24Hour     float64
+	MarketAsk        Amount
+	MarketBid        Amount
+	Volume24Hour     Amount
 	Disabled         bool
 }
 
@@ -32,7 +32,7 @@ func DefaultClient() *PublicClient {
 }
 
 func (c *PublicClient) FetchProducts() ([]*ProductDetails, error) {
-	endpoint := apiBaseUrl + productsEndpoint
+	endpoint := qryptosApiBaseUrl + productsEndpoint
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		return []*ProductDetails{}, err
@@ -59,26 +59,32 @@ func (c *PublicClient) FetchProducts() ([]*ProductDetails, error) {
 		if respDetail.MarketAsk == "" {
 			continue
 		}
-		marketAsk, err := strconv.ParseFloat(respDetail.MarketAsk, 64)
+		var marketAsk Amount
+		fMarketAsk, err := strconv.ParseFloat(respDetail.MarketAsk, 64)
 		if err != nil {
 			fmt.Println("[FetchProducts] Error parsing MarketAsk:", err.Error())
 			return []*ProductDetails{}, err
 		}
+		marketAsk.FromDecimal(fMarketAsk)
 
 		if respDetail.MarketBid == "" {
 			continue
 		}
-		marketBid, err := strconv.ParseFloat(respDetail.MarketBid, 64)
+		var marketBid Amount
+		fMarketBid, err := strconv.ParseFloat(respDetail.MarketBid, 64)
 		if err != nil {
 			fmt.Println("[FetchProducts] Error parsing MarketBid:", err.Error())
 			return []*ProductDetails{}, err
 		}
+		marketBid.FromDecimal(fMarketBid)
 
-		vol24Hr, err := strconv.ParseFloat(respDetail.Volume24Hr, 64)
+		var vol24Hr Amount
+		fVol24Hr, err := strconv.ParseFloat(respDetail.Volume24Hr, 64)
 		if err != nil {
 			fmt.Println("[FetchProducts] Error parsing Volume24Hr:", err.Error())
 			return []*ProductDetails{}, err
 		}
+		vol24Hr.FromDecimal(fVol24Hr)
 
 		out = append(out, &ProductDetails{
 			ProductID:        prodId,
