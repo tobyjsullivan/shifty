@@ -215,17 +215,24 @@ func runBudget() {
 				pos.closingOrderId = closingId
 				continue
 			}
-			sellOrder := ctx.findOrder(sellOrderId)
-			if sellOrder == nil || !sellOrder.CanEdit() {
-				fmt.Println("INFO [runBudget] Either cannot find or cannot edit order.", sellOrderId)
-				continue
-			}
+
 
 			mktAsk := ctx.productDetails.MarketAsk
 			minAsk := qryptos.Amount(float64(pos.openingPrice) * minimumSplit)
-
 			if mktAsk < minAsk {
 				fmt.Println("DEBUG [runBudget] Current market ask is below minimum ask for sell order.", sellOrderId)
+			} else {
+				continue
+			}
+
+			sellOrder := ctx.findOrder(sellOrderId)
+			if sellOrder == nil {
+				fmt.Println("INFO [runBudget] Cannot find sell order.", sellOrderId)
+				continue
+			}
+			if !sellOrder.CanEdit() {
+				fmt.Println("INFO [runBudget] Cannot edit sell order.", sellOrderId)
+				continue
 			}
 
 			if sellOrder.Price > mktAsk && sellOrder.Price > minAsk {
