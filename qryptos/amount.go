@@ -14,3 +14,7 @@ func (ca Amount) ToDecimal() float64 {
 func (ca *Amount) FromDecimal(dec float64)  {
 	*ca = Amount(dec * AmountRatio)
 }
+
+func (ca Amount) Multiply(o Amount) Amount {
+	return (ca * o) / AmountRatio
+}

@@ -93,7 +93,7 @@ func runBudget() {
 		// Compute remaining budget
 		remainingBudget := capitalAmount
 		for _, position := range openedPositions {
-			remainingBudget -= position.quantity * position.openingPrice
+			remainingBudget -= position.quantity.Multiply(position.openingPrice)
 
 			if position.closingOrderId == 0 {
 				continue
@@ -102,7 +102,7 @@ func runBudget() {
 			// Any filled quantity can be available in budget
 			closingOrder := ctx.findOrder(position.closingOrderId)
 			if closingOrder != nil {
-				remainingBudget += closingOrder.FilledQuantity * position.openingPrice
+				remainingBudget += closingOrder.FilledQuantity.Multiply(position.openingPrice)
 			}
 		}
 		fmt.Println("DEBUG [runBudget] Computed remaining budget:", remainingBudget)
