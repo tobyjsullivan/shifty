@@ -15,7 +15,7 @@ import (
 
 const (
 	capitalAmount = qryptos.Amount(1000000)
-	loopDelay     = 10 * time.Second
+	loopDelay     = 20 * time.Second
 )
 
 var (
