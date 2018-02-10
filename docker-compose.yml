@@ -11,3 +11,11 @@ services:
       POSITION_QUOTE_CURRENCY: BTC
       AWS_ACCESS_KEY_ID:
       AWS_SECRET_ACCESS_KEY:
+  monitor:
+    build:
+      context: .
+      dockerfile: ./monitor/Dockerfile
+    environment:
+      AWS_ACCESS_KEY_ID:
+      AWS_SECRET_ACCESS_KEY:
+
