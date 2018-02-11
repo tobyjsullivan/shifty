@@ -9,7 +9,6 @@ import (
 var (
 	buyOrderIds []int
 	openedPositions []*position
-	closedPositions []*position
 )
 
 type context struct {
@@ -32,6 +31,7 @@ type position struct {
 	openingPrice       qryptos.Amount
 	quantity           qryptos.Amount
 	closingOrderId     int
+	closed             bool
 }
 
 func runBudget(productUpdates chan *qryptos.ProductDetails) {
@@ -55,27 +55,22 @@ func runBudget(productUpdates chan *qryptos.ProductDetails) {
 		}
 
 		// Check for any closed positions and remove
-		for i, position := range openedPositions {
+		for _, position := range openedPositions {
 			closingOrder := ctx.findOrder(position.closingOrderId)
 			if closingOrder != nil && closingOrder.Status != "live" {
-				closedPositions = append(closedPositions, position)
-
-				// Nifty delete hack (doesn't preserve order)
-				openedPositions[i] = openedPositions[len(openedPositions) - 1]
-				openedPositions = openedPositions[:len(openedPositions) - 1]
-
-				fmt.Println("INFO [runBudget] Removed closed position. Order #", closingOrder.ID)
+				position.closed = true
+				fmt.Println("INFO [runBudget] Closed position. Order #", closingOrder.ID)
 			}
 		}
 
 		// Check for and record any new open position
 		priorExecutionIds := make(map[int]bool)
 		for _, position := range openedPositions {
+			if position.closed {
+				continue
+			}
+
 			fmt.Println("DEBUG [runBudget] Found execution in opened positions.", position.openingExecutionId)
-			priorExecutionIds[position.openingExecutionId] = true
-		}
-		for _, position := range closedPositions {
-			fmt.Println("DEBUG [runBudget] Found execution in closed positions.", position.openingExecutionId)
 			priorExecutionIds[position.openingExecutionId] = true
 		}
 		for _, buyOrderId := range buyOrderIds {
@@ -100,6 +95,10 @@ func runBudget(productUpdates chan *qryptos.ProductDetails) {
 		// Compute remaining budget
 		remainingBudget := capitalAmount
 		for _, position := range openedPositions {
+			if position.closed {
+				continue
+			}
+
 			remainingBudget -= position.quantity.Multiply(position.openingPrice)
 
 			if position.closingOrderId == 0 {
@@ -174,6 +173,10 @@ func runBudget(productUpdates chan *qryptos.ProductDetails) {
 		go func() {
 			fmt.Println("DEBUG [runBudget] Managing sell orders")
 			for i, pos := range openedPositions {
+				if pos.closed {
+					continue
+				}
+
 				sellOrderId := pos.closingOrderId
 				if sellOrderId == 0 {
 					fmt.Println("INFO [runBudget] Closing position.")
@@ -185,6 +188,9 @@ func runBudget(productUpdates chan *qryptos.ProductDetails) {
 						}
 
 						current := openedPositions[j]
+						if current.closed {
+							continue
+						}
 						if current.closingOrderId != 0 {
 							if sellOrder := ctx.findOrder(current.closingOrderId); sellOrder == nil || !sellOrder.CanEdit() {
 								continue
@@ -209,12 +215,7 @@ func runBudget(productUpdates chan *qryptos.ProductDetails) {
 								continue
 							}
 						}
-
-						closedPositions = append(closedPositions, pos)
-
-						// Delete this position
-						openedPositions[i] = openedPositions[len(openedPositions) - 1]
-						openedPositions = openedPositions[:len(openedPositions) - 1]
+						pos.closed = true
 						fmt.Println("INFO [runBudget] Merged positions")
 						continue
 					}
