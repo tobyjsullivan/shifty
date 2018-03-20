@@ -89,7 +89,7 @@ func runBudget(productUpdates chan *qryptos.ProductDetails) {
 func markPositionsClosed(ctx *context, openedPositions []*position) {
 	for _, position := range openedPositions {
 		closingOrder := ctx.findOrder(position.closingOrderId)
-		if closingOrder != nil && closingOrder.Status != "live" {
+		if closingOrder != nil && closingOrder.Status != qryptos.OrderStatusLive {
 			position.closed = true
 			fmt.Println("INFO [runBudget] Closed position. Order #", closingOrder.ID)
 		}
@@ -115,7 +115,6 @@ func fetchContext() (*context, error) {
 
 func closePosition(ctx *context, minPrice, quantity qryptos.Amount) (int, error) {
 	fmt.Println("[closePosition]", "Creating sell order...")
-	sideValue := "sell"
 
 	productId := ctx.productDetails.ProductID
 	price := ctx.productDetails.MarketAsk
@@ -123,7 +122,7 @@ func closePosition(ctx *context, minPrice, quantity qryptos.Amount) (int, error)
 		price = minPrice
 	}
 
-	orderId, err := client.CreateLimitOrder(productId, sideValue, quantity, price)
+	orderId, err := client.CreateLimitOrder(productId, qryptos.OrderSideSell, quantity, price)
 	if err != nil {
 		return 0, err
 	}
@@ -146,7 +145,7 @@ func updateBuyOrder(ctx *context, remainingBudget qryptos.Amount, buyOrderIds []
 	shouldUpdateOrder := true
 	for _, buyOrderId := range buyOrderIds {
 		buyOrder := ctx.findOrder(buyOrderId)
-		if buyOrder == nil || buyOrder.Status != "live" {
+		if buyOrder == nil || buyOrder.Status != qryptos.OrderStatusLive {
 			return
 		}
 
@@ -178,7 +177,7 @@ func updateBuyOrder(ctx *context, remainingBudget qryptos.Amount, buyOrderIds []
 	// Create a new buy order if none was found to edit (and there's budget)
 	if shouldUpdateOrder && !editableBuyOrderFound && remainingBudget > 0.0 {
 		fmt.Println("INFO [runBudget] Creating new order")
-		orderId, err := client.CreateLimitOrder(ctx.productDetails.ProductID, "buy", buyQuantity, buyPrice)
+		orderId, err := client.CreateLimitOrder(ctx.productDetails.ProductID, qryptos.OrderSideBuy, buyQuantity, buyPrice)
 		if err != nil {
 			fmt.Println("ERROR [runBudget] Error while creating buy order:", err.Error())
 			return

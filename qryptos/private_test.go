@@ -126,7 +126,7 @@ func TestPrivateClient_CreateLimitOrder(t *testing.T) {
 		apiBaseUrl: ts.URL,
 	}
 
-	orderId, err := client.CreateLimitOrder(4, "buy", Amount(23180680000), Amount(4754))
+	orderId, err := client.CreateLimitOrder(4, OrderSideBuy, Amount(23180680000), Amount(4754))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err.Error())
 	}

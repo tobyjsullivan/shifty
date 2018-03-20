@@ -12,6 +12,31 @@ const (
 	productsEndpoint  = "/products"
 )
 
+var (
+	minOrderQuantities = map[string]Amount {
+		"BCH": Amount(1000000),
+		"BMC": Amount(100000000),
+		"BTC": Amount(100000),
+		"DASH": Amount(50000000),
+		"DENT": Amount(100000000),
+		"DRG": Amount(100000000),
+		"ECH": Amount(100000000),
+		"ETC": Amount(50000000),
+		"ETH": Amount(1000000),
+		"ETN": Amount(100000000),
+		"LTC": Amount(50000000),
+		"QASH": Amount(100000000),
+		"STORJ": Amount(100000000),
+		"UBTC": Amount(1000000),
+		"VET": Amount(10000000),
+		"VZT": Amount(100000000),
+		"XLM": Amount(50000000),
+		"XMR": Amount(50000000),
+		"XRP": Amount(50000000),
+		"ZEC": Amount(1000000),
+	}
+)
+
 type PublicClient struct {
 }
 
@@ -100,6 +125,15 @@ func (c *PublicClient) FetchProducts() ([]*ProductDetails, error) {
 	}
 
 	return out, nil
+}
+
+func MinimumOrderQuantity(currency string) Amount {
+	qty, ok := minOrderQuantities[currency]
+	if !ok {
+		return Amount(1000000)
+	}
+
+	return qty
 }
 
 type productsResponse struct {

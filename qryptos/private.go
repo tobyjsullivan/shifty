@@ -14,7 +14,15 @@ import (
 )
 
 const (
-	ordersEndpoint = "/orders"
+	endpointOrders          = "/orders"
+	endpointAccountBalances = "/accounts/balance"
+
+	OrderStatusLive = "live"
+	OrderStatusCancelled = "cancelled"
+	OrderStatusFilled = "filled"
+
+	OrderSideBuy = "buy"
+	OrderSideSell = "sell"
 )
 
 type PrivateClient struct {
@@ -46,6 +54,11 @@ type ExecutionDetails struct {
 	ID       int
 	Quantity Amount
 	Price    Amount
+}
+
+type AccountBalance struct {
+	Currency string
+	Balance Amount
 }
 
 func (c *PrivateClient) generateJWT(uri *url.URL) (string, error) {
@@ -103,8 +116,13 @@ type executionResponse struct {
 	MySide    string `json:"my_side"`
 }
 
+type accountBalanceResponse struct {
+	Currency string `json:"currency"`
+	Balance string `json:"balance"`
+}
+
 func (c *PrivateClient) FetchOrders() ([]*OrderDetails, error) {
-	endpoint := c.apiBaseUrl + ordersEndpoint
+	endpoint := c.apiBaseUrl + endpointOrders
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		return []*OrderDetails{}, err
@@ -142,7 +160,7 @@ func (c *PrivateClient) FetchOrders() ([]*OrderDetails, error) {
 }
 
 func (c *PrivateClient) FetchOrder(orderId int) (*OrderDetails, error) {
-	endpoint := fmt.Sprintf("%s%s/%d", c.apiBaseUrl, ordersEndpoint, orderId)
+	endpoint := fmt.Sprintf("%s%s/%d", c.apiBaseUrl, endpointOrders, orderId)
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -192,7 +210,7 @@ func (c *PrivateClient) CreateLimitOrder(productId int, side string, quantity, p
 
 	fmt.Printf("[CreateLimitOrder] Body: %s\n", bodyString)
 
-	endpoint := c.apiBaseUrl + ordersEndpoint
+	endpoint := c.apiBaseUrl + endpointOrders
 	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(string(bodyString)))
 	if err != nil {
 		return 0, err
@@ -252,7 +270,7 @@ func (c *PrivateClient) EditOrder(orderId int, quantity, price Amount) error {
 		return err
 	}
 
-	endpoint := fmt.Sprintf("%s%s/%d", c.apiBaseUrl, ordersEndpoint, orderId)
+	endpoint := fmt.Sprintf("%s%s/%d", c.apiBaseUrl, endpointOrders, orderId)
 	req, err := http.NewRequest(http.MethodPut, endpoint, strings.NewReader(string(bodyString)))
 	if err != nil {
 		return err
@@ -277,13 +295,15 @@ func (c *PrivateClient) EditOrder(orderId int, quantity, price Amount) error {
 		return errors.New(fmt.Sprintf("unexpected status: %d", res.StatusCode))
 	}
 
+	fmt.Printf("[EditOrder] Status Code: %d\n", res.StatusCode)
+
 	return nil
 }
 
 func (c *PrivateClient) CancelOrder(orderId int) error {
 	fmt.Println("[CancelOrder] Cancelling order:", orderId)
 
-	endpoint := fmt.Sprintf("%s%s/%d/cancel", c.apiBaseUrl, ordersEndpoint, orderId)
+	endpoint := fmt.Sprintf("%s%s/%d/cancel", c.apiBaseUrl, endpointOrders, orderId)
 	req, err := http.NewRequest(http.MethodPut, endpoint, nil)
 	if err != nil {
 		return err
@@ -311,8 +331,48 @@ func (c *PrivateClient) CancelOrder(orderId int) error {
 	return nil
 }
 
+func (c *PrivateClient) FetchAccountBalances() ([]*AccountBalance, error) {
+	fmt.Println("[FetchCryptoAccounts] Fetching accounts...")
+
+	endpoint := c.apiBaseUrl + endpointAccountBalances
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return []*AccountBalance{}, err
+	}
+
+	err = c.signRequest(req)
+	if err != nil {
+		return []*AccountBalance{}, err
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return []*AccountBalance{}, err
+	}
+
+	var parsedResponse []*accountBalanceResponse
+	if err := json.NewDecoder(res.Body).Decode(&parsedResponse); err != nil {
+		return []*AccountBalance{}, err
+	}
+
+	out := make([]*AccountBalance, len(parsedResponse))
+	for i, acctInfo := range parsedResponse {
+		balance, err := amountFromString(acctInfo.Balance)
+		if err != nil {
+			return []*AccountBalance{}, err
+		}
+
+		out[i] = &AccountBalance{
+			Currency: acctInfo.Currency,
+			Balance:  balance,
+		}
+	}
+
+	return out, nil
+}
+
 func (o *OrderDetails) CanEdit() bool {
-	return o.Status == "live" && o.FilledQuantity == 0.0
+	return o.Status == OrderStatusLive && o.FilledQuantity == 0.0
 }
 
 type fmtCreateOrder struct {
@@ -340,19 +400,16 @@ func parseExecutions(input []*executionResponse) ([]*ExecutionDetails, error) {
 	var out []*ExecutionDetails
 
 	for _, resp := range input {
-		var quantity Amount
-		fQuantity, err := strconv.ParseFloat(resp.Quantity, 64)
-		if err != nil {
-			return []*ExecutionDetails{}, err
-		}
-		quantity.FromDecimal(fQuantity)
 
-		var price Amount
-		fPrice, err := strconv.ParseFloat(resp.Price, 64)
+		quantity, err := amountFromString(resp.Quantity)
 		if err != nil {
 			return []*ExecutionDetails{}, err
 		}
-		price.FromDecimal(fPrice)
+
+		price, err := amountFromString(resp.Price)
+		if err != nil {
+			return []*ExecutionDetails{}, err
+		}
 
 		out = append(out, &ExecutionDetails{
 			ID:       resp.ID,
@@ -370,19 +427,15 @@ func parseOrderDetails(input *orderResponse) (*OrderDetails, error) {
 		return nil, err
 	}
 
-	var quantity Amount
-	fQuantity, err := strconv.ParseFloat(input.Quantity, 64)
+	quantity, err := amountFromString(input.Quantity)
 	if err != nil {
 		return nil, err
 	}
-	quantity.FromDecimal(fQuantity)
 
-	var filledQty Amount
-	fFilledQty, err := strconv.ParseFloat(input.FilledQuantity, 64)
+	filledQty, err := amountFromString(input.FilledQuantity)
 	if err != nil {
 		return nil, err
 	}
-	filledQty.FromDecimal(fFilledQty)
 
 	var price Amount
 	price.FromDecimal(input.Price)
@@ -397,4 +450,15 @@ func parseOrderDetails(input *orderResponse) (*OrderDetails, error) {
 		FilledQuantity:   filledQty,
 		Executions:       executions,
 	}, nil
+}
+
+func amountFromString(s string) (Amount, error) {
+	var amt Amount
+	fAmount, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return amt, err
+	}
+	amt.FromDecimal(fAmount)
+
+	return amt, nil
 }

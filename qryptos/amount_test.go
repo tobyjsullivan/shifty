@@ -34,3 +34,27 @@ func TestAmount_Multiply(t *testing.T) {
 		t.Errorf("The product did not match expected value. Expected: %d; Actual: %d.", expected, product)
 	}
 }
+
+func TestAmount_Divide(t *testing.T) {
+	am1 := Amount(297349782)
+	am2 := Amount(874301822)
+
+	quotient := am1.Divide(am2)
+
+	expected := Amount(34009969)
+	if quotient != expected {
+		t.Error("Unexpected quotient. Expected:", expected, "; Actual:", quotient)
+	}
+}
+
+func TestAmount_Divide_RoundUp(t *testing.T) {
+	am1 := Amount(500000000)
+	am2 := Amount(300000000)
+
+	quotient := am1.Divide(am2)
+
+	expected := Amount(166666667)
+	if quotient != expected {
+		t.Error("Unexpected quotient. Expected:", expected, "; Actual:", quotient)
+	}
+}
